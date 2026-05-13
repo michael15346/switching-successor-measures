@@ -22,7 +22,7 @@ We introduce <b>Switching Successor Measures</b>, a hierarchical reinforcement l
 </p>
 
 <p align="center">
-  <img src="figure_algo.svg" width="75%">
+  <img src="figure_algo.svg" width="85%">
 </p>
 <p>
 The method builds on Forward-Backward (FB) representations but learns <b>state-based successor measures</b>, enabling compositional long-horizon planning. We further introduce a hierarchical mechanism over these representations, leading to improved performance on navigation and goal-reaching tasks.
