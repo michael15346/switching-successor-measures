@@ -21,6 +21,9 @@ Official implementation of <b>Switching Successor Measures (SSM)</b>, a framewor
 We introduce <b>Switching Successor Measures</b>, a hierarchical reinforcement learning framework that enables <b>zero-shot generalization across tasks</b> by switching between learned successor representations.
 </p>
 
+<p align="center">
+  <img src="figure_algo.svg" width="75%">
+</p>
 <p>
 The method builds on Forward-Backward (FB) representations but learns <b>state-based successor measures</b>, enabling compositional long-horizon planning. We further introduce a hierarchical mechanism over these representations, leading to improved performance on navigation and goal-reaching tasks.
 </p>
