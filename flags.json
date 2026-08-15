@@ -1,0 +1,36 @@
+{
+  "seed": 0,
+  "env_name": "ogbench-antmaze-medium-navigate-v0",
+  "agent": {
+    "agent_name": "fbpiswitch",
+    "activation": "gelu",
+    "actor_hidden_dims": [
+      512,
+      512,
+      512
+    ],
+    "backward_repr_hidden_dims": [
+      512,
+      512,
+      512
+    ],
+    "forward_repr_hidden_dims": [
+      512,
+      512,
+      512
+    ],
+    "actor_layer_norm": false,
+    "backward_repr_layer_norm": true,
+    "forward_repr_layer_norm": true,
+    "const_std": true,
+    "latent_dim": 128,
+    "normalize_latent": true,
+    "dataset_class": "HGCDataset",
+    "frame_stack": null,
+    "discount": 0.99,
+    "high_alpha": 0.1,
+    "critic_latent_mix_prob": 0.5,
+    "actor_latent_mix_prob": 0.5,
+    "reward_temperature": 0.0
+  }
+}

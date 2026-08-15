@@ -82,6 +82,7 @@ def setup_wandb(
         settings=wandb.Settings(
             start_method='thread',
             _disable_stats=False,
+            https_proxy="http://localhost:10808"
         ),
         mode=mode,
         save_code=True,
@@ -107,9 +108,9 @@ def reshape_video(v, n_cols=None):
         v = np.concatenate((v, np.zeros(shape=(len_addition, t, h, w, c))), axis=0)
     n_rows = v.shape[0] // n_cols
 
-    v = np.reshape(v, shape=(n_rows, n_cols, t, h, w, c))
+    v = np.reshape(v, (n_rows, n_cols, t, h, w, c))
     v = np.transpose(v, axes=(2, 5, 0, 3, 1, 4))
-    v = np.reshape(v, shape=(t, c, n_rows * h, n_cols * w))
+    v = np.reshape(v, (t, c, n_rows * h, n_cols * w))
     
     return v
 

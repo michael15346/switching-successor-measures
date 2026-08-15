@@ -5,6 +5,8 @@ os.environ["MUJOCO_GL"] = "egl"
 import random
 import time
 from collections import defaultdict
+import pickle
+import flax
 
 import numpy as np
 np.in1d = np.isin
@@ -26,7 +28,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('enable_wandb', 1, 'Whether to use wandb.')
 flags.DEFINE_string('wandb_run_group', 'experiments', 'Run group.')
 flags.DEFINE_integer('seed', 0, 'Random seed.')
-flags.DEFINE_string('env_name', 'ogbench-antmaze-large-navigate-v0', 'Environment (dataset) name.')
+flags.DEFINE_string('env_name', 'ogbench-antmaze-medium-navigate-v0', 'Environment (dataset) name.')
 flags.DEFINE_string('save_dir', 'exp_logs', 'Save directory.')
 flags.DEFINE_string('restore_path', None, 'Restore path.')
 flags.DEFINE_integer('restore_epoch', None, 'Restore epoch.')
@@ -97,11 +99,17 @@ def main(_):
 
     # Restore agent.
     if FLAGS.restore_path is not None:
-        agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
+        if FLAGS.restore_path.endswith('.pkl'):
+            with open(FLAGS.restore_path, 'rb') as f:
+                load_dict = pickle.load(f)
+            agent = flax.serialization.from_state_dict(agent, load_dict['agent'])
+        else:
+            agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
+
 
     # If frozen FB agent → load FB weights and copy FB modules
-    if config['agent_name'] in ["hfb", "fbpiswitch"]:
-        agent = agent.load_agent_from_frozen(FLAGS, config, example_batch)  
+    # if config['agent_name'] in ["hfb", "fbpiswitch"]:
+    #     agent = agent.load_agent_from_frozen(FLAGS, config, example_batch)  
     
     
     # Train agent.
