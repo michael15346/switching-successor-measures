@@ -1,3 +1,4 @@
+from agents.fbpiswitch_coghp import FBPiSwitchCoGHPAgent
 from agents.fb import FBAgent
 from agents.icvf import ICVFAgent
 from agents.onestep_fb import OneStepFBAgent
@@ -20,6 +21,7 @@ agents = dict(
     iqlintentions=HIQLwithIntentionsAgent,
     fbpiswitch_nonh=FBpiSwitchNonHierarchicalAgent,
     fbpiswitch=FBpiSwitchAgent,
+    fbpiswitch_coghp=FBPiSwitchCoGHPAgent,
     hfb=FBHierarchicalAgent,
 )
 

@@ -45,7 +45,7 @@ flags.DEFINE_float('eval_gaussian', None, 'Action Gaussian noise for evaluation.
 flags.DEFINE_integer('video_episodes', 1, 'Number of video episodes for each task.')
 flags.DEFINE_integer('video_frame_skip', 3, 'Frame skip for videos.')
 
-config_flags.DEFINE_config_file('agent', 'agents/fbpiswitch.py', lock_config=False)
+config_flags.DEFINE_config_file('agent', 'agents/fbpiswitch_coghp.py', lock_config=False)
 
 
 def main(_):
@@ -102,12 +102,28 @@ def main(_):
         if FLAGS.restore_path.endswith('.pkl'):
             with open(FLAGS.restore_path, 'rb') as f:
                 load_dict = pickle.load(f)
-            agent = flax.serialization.from_state_dict(agent, load_dict['agent'])
+
+            current_params = flax.core.unfreeze(agent.network.params)
+            loaded_params = flax.core.unfreeze(load_dict['agent']['network']['params'])
+
+            modules_to_load = ['modules_backward_repr', 'modules_forward_repr', 'modules_actor']
+
+            for mod in modules_to_load:
+                if mod in loaded_params:
+                    current_params[mod] = loaded_params[mod]
+                    print(f"  - Loaded {mod}")
+                else:
+                    print(f"  - Warning: {mod} not found in checkpoint, keeping initialized.")
+
+            new_network = agent.network.replace(params=current_params)
+            agent = agent.replace(network=new_network)
+            print("Successfully loaded frozen modules. High-level mixer will be trained from scratch.")
+
         else:
             agent = restore_agent(agent, FLAGS.restore_path, FLAGS.restore_epoch)
 
 
-    # If frozen FB agent → load FB weights and copy FB modules
+    # If frozen FB agent -> load FB weights and copy FB modules
     # if config['agent_name'] in ["hfb", "fbpiswitch"]:
     #     agent = agent.load_agent_from_frozen(FLAGS, config, example_batch)  
     

@@ -444,3 +444,214 @@ class HGCDataset(GCDataset):
 
   
         return batch
+
+
+@dataclasses.dataclass
+class HGCDataset_CoGHP(HGCDataset):
+    """Dataset class for hierarchical goal-conditioned RL with Chain-of-Goals Hierarchical Policy-like high-level sampling.
+
+    This class extends GCDataset to support high-level actor goals and prediction targets. It reads the following
+    additional key from the config:
+    - subgoal_steps: Subgoal steps (i.e., the number of steps to reach the low-level goal).
+    """
+
+    def sample_future_state(
+            self,
+            idxs,
+            steps=None,
+            geom=False,
+            min_offset=1,
+            key="observations",
+            return_idxs=False,
+    ):
+        """
+        Sample a future state from the same trajectory as each index.
+
+        Args:
+            idxs: Current dataset indices.
+            steps: Fixed number of steps into the future. If None, sample randomly.
+            geom: If True and steps is None, use geometric sampling.
+            min_offset: Minimum future offset when randomly sampling.
+            key: Observation key to return.
+            return_idxs: If True, return future indices instead of observations.
+        """
+        idxs = np.asarray(idxs)
+        batch_size = idxs.shape[0]
+
+        # Find the end of the trajectory for each index.
+        final_state_idxs = self.terminal_locs[
+            np.searchsorted(self.terminal_locs, idxs)
+        ]
+
+        # Maximum allowed offset before hitting the trajectory end.
+        max_offsets = np.maximum(final_state_idxs - idxs, 0)
+
+        if steps is None:
+            if geom:
+                # Geometric future sampling, like the existing GCDataset code.
+                offsets = np.random.geometric(
+                    p=1.0 - self.config["discount"],
+                    size=batch_size,
+                ) - 1
+                offsets = offsets + min_offset
+            else:
+                # Uniformly sample a future offset in [min_offset, max_offset].
+                upper = np.maximum(max_offsets, min_offset)
+                offsets = (
+                                  np.random.rand(batch_size) * (upper - min_offset + 1)
+                          ).astype(int) + min_offset
+
+                # If already at terminal state, keep offset 0.
+                offsets = np.where(max_offsets >= min_offset, offsets, 0)
+        else:
+            # Fixed future step.
+            offsets = np.broadcast_to(np.asarray(steps), (batch_size,)).astype(int)
+
+        # Do not go past the end of the trajectory.
+        offsets = np.minimum(offsets, max_offsets)
+
+        future_idxs = idxs + offsets
+        future_idxs = np.minimum(future_idxs, final_state_idxs)
+
+        if return_idxs:
+            return future_idxs
+
+        return self.get_observations(future_idxs, key=key)
+
+    def sample_subgoal_sequence(
+            self,
+            idxs,
+            num_subgoals=None,
+            subgoal_steps=None,
+            key="observations",
+            far_to_near=True,
+    ):
+        """
+        Sample a sequence of future states from the same trajectory.
+
+        For CoGHP-style training, returns states at fixed k-step intervals:
+
+            s_{t+k}, s_{t+2k}, ..., s_{t+Hk}
+
+        clipped to the trajectory terminal.
+
+        By default, returns them farthest-to-nearest:
+
+            s_{t+Hk}, ..., s_{t+2k}, s_{t+k}
+
+        because FBChainOfGoalsMixer uses the last token as the nearest subgoal.
+        """
+        idxs = np.asarray(idxs)
+
+        if num_subgoals is None:
+            num_subgoals = self.config.get("num_subgoals", 2)
+
+        if subgoal_steps is None:
+            subgoal_steps = self.config.get("subgoal_steps", 25)
+
+        H = num_subgoals
+        k = subgoal_steps
+
+        final_state_idxs = self.terminal_locs[
+            np.searchsorted(self.terminal_locs, idxs)
+        ]
+
+        # Nearest-to-farthest offsets: [k, 2k, ..., Hk]
+        offsets = k * np.arange(1, H + 1)[None, :]
+
+        # Future indices for each subgoal.
+        future_idxs = np.minimum(
+            idxs[:, None] + offsets,
+            final_state_idxs[:, None],
+        )
+
+        if far_to_near:
+            # Convert to [Hk, ..., 2k, k]
+            future_idxs = future_idxs[:, ::-1]
+
+        # Get observations for each subgoal position.
+        future_obs_list = [
+            self.get_observations(future_idxs[:, i], key=key)
+            for i in range(H)
+        ]
+
+        # Stack into shape (batch, H, ...)
+        return jax.tree_util.tree_map(
+            lambda *xs: np.stack(xs, axis=1),
+            *future_obs_list,
+        )
+
+    def sample(self, batch_size, idxs=None, relabeling=True, augmentation=True):
+        """Sample a batch of transitions with goals.
+
+        This method samples a batch of transitions with goals from the dataset. The goals are stored in the keys
+        'value_goals', 'low_actor_goals', 'high_actor_goals', and 'high_actor_targets'. It also computes the 'rewards'
+        and 'masks' based on the indices of the goals.
+
+        Args:
+            batch_size: Batch size.
+            idxs: Indices of the transitions to sample. If None, random indices are sampled.
+            relabeling: Whether to relabel reward. If True and 'relabeling' is also True in config, reward relabeling is applied.
+            augmentation: Whether to augment image. If True, image augmentation is applied.
+        """
+        if idxs is None:
+            idxs = self.dataset.get_random_idxs(batch_size)
+
+        batch = self.dataset.sample(batch_size, idxs)
+        if self.config['frame_stack'] is not None:
+            batch['observations'] = self.get_observations(idxs)
+            batch['next_observations'] = self.get_observations(idxs + 1)
+
+        # Sample value goals.
+        value_goal_idxs = self.sample_goals(idxs, self.config['value_p_curgoal'], self.config['value_p_trajgoal'],
+                                            self.config['value_p_randomgoal'], self.config['value_geom_sample'])
+        batch['value_goals'] = self.get_observations(value_goal_idxs)
+
+        if self.config['relabeling'] and relabeling:
+            successes = (idxs == value_goal_idxs).astype(float)
+            batch['masks'] = 1.0 - successes
+            batch['rewards'] = successes - (1.0 if self.config['gc_negative'] else 0.0)
+
+        # Sample low-level actor goals
+        final_state_idxs = self.terminal_locs[np.searchsorted(self.terminal_locs, idxs)]
+        if self.config['agent_name'] == 'hiql':
+            low_goal_idxs = np.minimum(idxs + self.config['subgoal_steps'], final_state_idxs)
+            mid_low_goal_idxs = np.minimum(idxs + 10, final_state_idxs)
+        else:
+            offsets = np.random.geometric(p=1 - self.config['discount'], size=batch_size)  # in [1, inf)
+            low_goal_idxs = np.minimum(idxs + offsets, final_state_idxs)
+            mid_low_goal_idxs = np.minimum(idxs + offsets // 2, final_state_idxs)
+
+        batch['low_actor_goals'] = self.get_observations(low_goal_idxs)
+        batch['mid_low_actor_goals'] = self.get_observations(mid_low_goal_idxs)
+
+        # Sample high-level actor goals
+        if self.config['actor_geom_sample']:
+            offsets = np.random.geometric(p=1 - self.config['discount'], size=batch_size)  # in [1, inf)
+            high_traj_goal_idxs = np.minimum(idxs + offsets, final_state_idxs)
+        else:
+            distances = np.random.rand(batch_size)  # in [0, 1)
+            high_traj_goal_idxs = np.round(
+                (np.minimum(idxs + 1, final_state_idxs) * distances + final_state_idxs * (1 - distances))).astype(int)
+
+        # High-level random goals.
+        high_random_goal_idxs = self.dataset.get_random_idxs(batch_size)
+
+        # Pick between high-level future goals and random goals.
+        pick_random = np.random.rand(batch_size) < self.config['actor_p_randomgoal']
+        high_goal_idxs = np.where(pick_random, high_random_goal_idxs, high_traj_goal_idxs)
+
+        batch['high_actor_goals'] = self.get_observations(high_goal_idxs)
+
+        offsets = np.random.geometric(p=1 - self.config['discount'], size=batch_size)  # in [1, inf)
+        high_traj_target_idxs = np.minimum(idxs + offsets, final_state_idxs)
+        high_random_target_idxs = np.minimum(idxs + offsets, final_state_idxs)
+        high_target_idxs = np.where(pick_random, high_random_target_idxs, high_traj_target_idxs)
+        batch['high_actor_targets'] = self.get_observations(high_target_idxs)
+        batch["goals"] = batch["high_actor_goals"]
+        batch["subgoal_sequence"] = self.sample_subgoal_sequence(
+            idxs,
+            num_subgoals=self.config.get("num_subgoals", 2),
+            subgoal_steps=self.config.get("subgoal_steps", 25),
+        )
+        return batch

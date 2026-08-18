@@ -25,7 +25,7 @@
     "const_std": true,
     "latent_dim": 128,
     "normalize_latent": true,
-    "dataset_class": "HGCDataset",
+    "dataset_class": "HGCDataset_CoGHP",
     "frame_stack": null,
     "discount": 0.99,
     "high_alpha": 0.1,

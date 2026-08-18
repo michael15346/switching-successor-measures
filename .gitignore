@@ -1,3 +1,4 @@
 *.pyc
 wandb
 exp_logs
+.idea

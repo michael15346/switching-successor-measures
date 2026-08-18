@@ -103,7 +103,7 @@ class GCActor(nn.Module):
     state_dependent_std: bool = False
     const_std: bool = True
     final_fc_init_scale: float = 1e-2
-    gc_encoder: nn.Module = None
+    gc_encoder: nn.Module | None = None
 
     def setup(self):
         self.actor_net = MLP(
@@ -180,7 +180,7 @@ class GCValue(nn.Module):
     activations: Any = nn.gelu
     layer_norm: bool = True
     num_ensembles: int = 1
-    gc_encoder: nn.Module = None
+    gc_encoder: nn.Module | None = None
 
     def setup(self):
         mlp_class = MLP
@@ -244,8 +244,8 @@ class GCBilinearValue(nn.Module):
     activations: Any = nn.gelu
     layer_norm: bool = True
     num_ensembles: int = 1
-    state_encoder: nn.Module = None
-    goal_encoder: nn.Module = None
+    state_encoder: nn.Module | None = None
+    goal_encoder: nn.Module | None = None
 
     def setup(self):
         mlp_class = MLP
@@ -304,7 +304,7 @@ class ICVFValue(nn.Module):
     activations: Any = nn.gelu
     layer_norm: bool = True
     num_ensembles: int = 1
-    icvf_encoder: nn.Module = None
+    icvf_encoder: nn.Module | None = None
 
     def setup(self):
         mlp_class = MLP
