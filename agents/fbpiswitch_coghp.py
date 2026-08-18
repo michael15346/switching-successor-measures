@@ -314,7 +314,7 @@ def get_config():
         dict(
             agent_name='fbpiswitch_coghp',
             lr=3e-4,
-            batch_size=1024,
+            batch_size=2048,
             actor_hidden_dims=(512, 512, 512),
             forward_repr_hidden_dims=(512, 512, 512),
             backward_repr_hidden_dims=(512, 512, 512),
