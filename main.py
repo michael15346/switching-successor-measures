@@ -171,7 +171,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # Evaluate agent.
-        if i == 1 or i % FLAGS.eval_interval == 0:
+        if i > 0 and i % FLAGS.eval_interval == 0:
             renders = []
             eval_metrics = {}
             overall_metrics = defaultdict(list)
@@ -238,7 +238,7 @@ def main(_):
             eval_logger.log(eval_metrics, step=i)
 
         # Save agent.
-        if i % FLAGS.save_interval == 0:
+        if i > 0 and i % FLAGS.save_interval == 0:
             save_agent(agent, FLAGS.save_dir, i)
 
     train_logger.close()
