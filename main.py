@@ -149,7 +149,7 @@ def main(_):
             agent, update_info = agent.update(batch)
 
         # Log metrics.
-        if i % FLAGS.log_interval == 0:
+        if i > 0 and i % FLAGS.log_interval == 0:
             train_metrics = {f'training/{k}': v for k, v in update_info.items()}
             if val_dataset is not None:
                 val_batch = val_dataset.sample(config['batch_size'], augmentation=False)
