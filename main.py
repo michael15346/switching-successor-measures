@@ -27,7 +27,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('enable_wandb', 1, 'Whether to use wandb.')
 flags.DEFINE_string('wandb_run_group', 'experiments', 'Run group.')
-flags.DEFINE_integer('seed', 0, 'Random seed.')
+flags.DEFINE_integer('seed', 67, 'Random seed.')
 flags.DEFINE_string('env_name', 'ogbench-antmaze-medium-navigate-v0', 'Environment (dataset) name.')
 flags.DEFINE_string('save_dir', 'exp_logs', 'Save directory.')
 flags.DEFINE_string('restore_path', None, 'Restore path.')
