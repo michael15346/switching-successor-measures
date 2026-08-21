@@ -1,16 +1,7 @@
-import jax.core
-import jax.interpreters.xla as xla_inter
-import jax._src.xla_bridge as xb
-
-# shim for JAX 0.7 removal
-if not hasattr(xla_inter, 'pytype_aval_mappings'):
-    xla_inter.pytype_aval_mappings = jax.core.pytype_aval_mappings
-
 import json
 import importlib
 import os
-os.environ["MUJOCO_GL"] = "osmesa"
-os.environ['PYOPENGL_PLATFORM'] = 'egl'
+os.environ["MUJOCO_GL"] = "egl"
 import random
 import time
 from collections import defaultdict
