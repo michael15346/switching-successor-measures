@@ -2,6 +2,7 @@ import json
 import importlib
 import os
 os.environ["MUJOCO_GL"] = "osmesa"
+os.environ["PYOPENGL_PLATFORM"] = 'osmesa'
 import random
 import time
 from collections import defaultdict
