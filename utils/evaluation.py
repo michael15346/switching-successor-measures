@@ -3,6 +3,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from tqdm import trange
+
+from agents import FBPiSwitchCoGHPAgent
 from utils.reward_configs import complex_rewards_maze, get_reward_cfg
 
 def supply_rng(f, rng=jax.random.PRNGKey(0)):
@@ -94,7 +96,7 @@ def evaluate(
         
 
         while not done:
-            if inferred_latent is not None:
+            if inferred_latent is not None and not isinstance(agent, FBPiSwitchCoGHPAgent):
                 action = actor_fn(observation, inferred_latent, temperature=eval_temperature)
             else:
                 action = actor_fn(observation, goal, temperature=eval_temperature)

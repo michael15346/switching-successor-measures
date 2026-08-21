@@ -149,7 +149,7 @@ def main(_):
             agent, update_info = agent.update(batch)
 
         # Log metrics.
-        if i > 0 and i % FLAGS.log_interval == 0:
+        if i % FLAGS.log_interval == 0:
             train_metrics = {f'training/{k}': v for k, v in update_info.items()}
             if val_dataset is not None:
                 val_batch = val_dataset.sample(config['batch_size'], augmentation=False)
@@ -171,7 +171,7 @@ def main(_):
             train_logger.log(train_metrics, step=i)
 
         # Evaluate agent.
-        if i > 0 and i % FLAGS.eval_interval == 0:
+        if i % FLAGS.eval_interval == 0:
             renders = []
             eval_metrics = {}
             overall_metrics = defaultdict(list)
