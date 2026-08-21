@@ -1,8 +1,8 @@
 import json
 import importlib
 import os
-os.environ["MUJOCO_GL"] = "glfw"
-os.environ["PYOPENGL_PLATFORM"] = 'glx'
+# os.environ["MUJOCO_GL"] = "glfw"
+# os.environ["PYOPENGL_PLATFORM"] = 'glx'
 import random
 import time
 from collections import defaultdict
