@@ -1,3 +1,14 @@
+import jax.core
+import jax.interpreters.xla as xla_inter
+import jax._src.xla_bridge as xb
+
+# shim for JAX 0.7 removal
+if not hasattr(xla_inter, 'pytype_aval_mappings'):
+    xla_inter.pytype_aval_mappings = jax.core.pytype_aval_mappings
+
+# tfp also does: jax.interpreters.xla.Device etc.
+if not hasattr(xla_inter, 'Device'):
+    xla_inter.Device = xb.Device
 import json
 import importlib
 import os
