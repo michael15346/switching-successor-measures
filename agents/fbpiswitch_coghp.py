@@ -176,8 +176,6 @@ class FBPiSwitchCoGHPAgent(flax.struct.PyTreeNode):
     @jax.jit
     def total_loss(self, batch, grad_params, rng=None):
         info = {}
-        rng = rng if rng is not None else self.rng
-        rng, high_actor_rng = jax.random.split(rng, 2)
         high_actor_loss, high_actor_info = self.high_sequence_actor_loss(batch, grad_params)
         for k, v in high_actor_info.items():
             info[f'high_actor/{k}'] = v
@@ -207,28 +205,79 @@ class FBPiSwitchCoGHPAgent(flax.struct.PyTreeNode):
     @jax.jit
     def sample_actions(self, observations, goals, seed, temperature=1.0):
         """
-        Generates the chain of subgoals and executes the nearest one (z_1).
-        Replanning is handled by the evaluation loop calling this periodically.
+        Generates the chain of subgoals, scores them using the FB switching advantage,
+        and executes the best one based on reachability, task value, and cost.
         """
         is_single = (observations.ndim == 1)
         if is_single:
             observations = observations[None, ...]
             goals = goals[None, ...]
 
-        z_s = self.normalize_z(self.network.select('backward_repr')(observations))
-
-        z_g = self.normalize_z(goals)
+        B = self.network.select('backward_repr')
+        z_s = self.normalize_z(B(observations))
+        z_g = self.normalize_z(B(goals))
 
         pred_z_seq = self.network.select('high_sequence_mixer')(
             z_s, z_g, None, train=False
         )
 
-        z_1 = pred_z_seq[:, -1, :]
-        z_1 = self.normalize_z(z_1)
+        H = self.config['num_subgoals']
+        lambda_c = self.config.get('subgoal_selection_lambda_c', 0.1)
+        lambda_u = self.config.get('subgoal_selection_lambda_u', 0.1)
 
-        low_dist = self.network.select('actor')(observations, z_1, goal_encoded=True, temperature=temperature)
+        batch_size = observations.shape[0]
+
+        # Precompute F(s, z_g)^T z_g
+        F_s_zg_zg = self.successor_measure_extract(observations, z_g, z_g)  # (ens, batch)
+
+        scores = []
+
+        for i in range(H):
+            z_i = self.normalize_z(pred_z_seq[:, i, :])
+
+            # F(s, z_i)^T z_g
+            F_s_zi_zg = self.successor_measure_extract(observations, z_g, z_i)
+            # F(s, z_i)^T z_i
+            F_s_zi_zi = self.successor_measure_extract(observations, z_i, z_i)
+
+            # Proxies for F(w_i, ...) since we only have latent z_i
+            # F(w_i, z_i)^T z_i \approx z_i^T z_i
+            F_wi_zi_zi = jnp.sum(z_i * z_i, axis=-1)  # (batch,)
+            # F(w_i, z_g)^T z_g \approx z_i^T z_g
+            F_wi_zg_zg = jnp.sum(z_i * z_g, axis=-1)  # (batch,)
+
+            # Reachability R_i
+            R_i = F_s_zi_zi / (F_wi_zi_zi[None, :] + 1e-8)  # (ens, batch)
+            R_i = jnp.clip(R_i, 0.0, 1.0)
+
+            # Switching Advantage A_FB
+            A_FB = F_s_zi_zg + R_i * F_wi_zg_zg[None, :] - F_s_zg_zg  # (ens, batch)
+
+            # Conservative estimates (minimum over ensemble)
+            R_i_cons = jnp.min(R_i, axis=0)  # (batch,)
+            A_FB_cons = jnp.min(A_FB, axis=0)  # (batch,)
+
+            # Uncertainty (variance over ensemble)
+            U_i = jnp.var(A_FB, axis=0)  # (batch,)
+
+            # Cost: Farther subgoals are riskier.
+            # i=0 is the farthest (z_H), i=H-1 is the nearest (z_1).
+            C_i = (H - 1) - i
+
+            # Final Score
+            S_i = R_i_cons * A_FB_cons - lambda_c * C_i - lambda_u * U_i  # (batch,)
+            scores.append(S_i)
+
+        scores = jnp.stack(scores, axis=1)  # (batch, H)
+        best_i = jnp.argmax(scores, axis=1)  # (batch,)
+
+        z_exec = pred_z_seq[jnp.arange(batch_size), best_i]
+        z_exec = self.normalize_z(z_exec)
+
+        low_dist = self.network.select('actor')(observations, z_exec, goal_encoded=True, temperature=temperature)
         actions = low_dist.sample(seed=seed)
         actions = jnp.clip(actions, -1, 1)
+
         if is_single:
             actions = actions[0]
         return actions
@@ -314,7 +363,7 @@ def get_config():
         dict(
             agent_name='fbpiswitch_coghp',
             lr=3e-4,
-            batch_size=4096,
+            batch_size=1024,
             actor_hidden_dims=(512, 512, 512),
             forward_repr_hidden_dims=(512, 512, 512),
             backward_repr_hidden_dims=(512, 512, 512),
@@ -355,7 +404,9 @@ def get_config():
             mixer_tokens_dim=64,
             mixer_channels_dim=128,
             mixer_num_blocks=3,
-            subgoal_discount_factor=0.8
+            subgoal_discount_factor=0.8,
+            subgoal_selection_lambda_c = 0.1,
+            subgoal_selection_lambda_u = 0.1,
         )
     )
     return config
