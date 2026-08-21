@@ -9,7 +9,7 @@ if not hasattr(xla_inter, 'pytype_aval_mappings'):
 import json
 import importlib
 import os
-os.environ["MUJOCO_GL"] = "egl"
+#os.environ["MUJOCO_GL"] = "egl"
 import random
 import time
 from collections import defaultdict
