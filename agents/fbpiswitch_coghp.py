@@ -405,8 +405,8 @@ def get_config():
             mixer_channels_dim=128,
             mixer_num_blocks=3,
             subgoal_discount_factor=0.8,
-            subgoal_selection_lambda_c = 0.1,
-            subgoal_selection_lambda_u = 0.1,
+            subgoal_selection_lambda_c = 0.3,
+            subgoal_selection_lambda_u = 0.3,
         )
     )
     return config
