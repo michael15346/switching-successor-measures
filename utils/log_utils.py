@@ -81,8 +81,7 @@ def setup_wandb(
         name=name,
         settings=wandb.Settings(
             start_method='thread',
-            _disable_stats=False,
-            https_proxy="http://127.0.0.1:10808",
+            _disable_stats=False
         ),
         mode=mode,
         save_code=True,
